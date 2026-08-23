@@ -67,7 +67,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Привет! Выбери направление — я покажу ближайшие 3 рейса №451 и №2198.\n\n"
         "Сезон №451 выбирается автоматически: апрель–октябрь — лето, ноябрь–март — зима.\n\n"
         "Можно писать и текстом, например: «Через 15 минут буду на Востоке, когда до Острошицкого?».\n"
-        "Для ручного выбора сезона используй /лето, /зима или /авто.",
+        "Для ручного выбора сезона используй /summer, /winter или /auto.",
         reply_markup=keyboard(),
     )
 
@@ -78,10 +78,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def season_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     command = update.message.text.lower().split()[0]
-    if command == "/лето":
+    if command == "/summer":
         context.user_data["season"] = "summer"
         text = "летний"
-    elif command == "/зима":
+    elif command == "/winter":
         context.user_data["season"] = "winter"
         text = "зимний"
     else:
@@ -138,7 +138,7 @@ def main() -> None:
     )
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler(["лето", "зима", "авто"], season_command))
+    app.add_handler(CommandHandler(["summer", "winter", "auto"], season_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message))
     app.add_error_handler(error_handler)
     app.run_polling()
