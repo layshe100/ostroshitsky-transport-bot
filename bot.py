@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time as dt_time, timedelta
 
 from dotenv import load_dotenv
 from telegram import ReplyKeyboardMarkup, Update
@@ -16,7 +16,7 @@ load_dotenv()
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
 
 
-def parse_query(text: str) -> tuple[str | None, int, str | None, str | None]:
+def parse_query(text: str) -> tuple[str | None, int, str | None, str | None, dt_time | None]:
     normalized = text.lower().replace("ё", "е")
     explicit_to_ostroshitsky = bool(re.search(r"до\s+(?:острош|городок)", normalized))
     explicit_to_vostok = bool(re.search(r"до\s+восток", normalized))
@@ -47,26 +47,42 @@ def parse_query(text: str) -> tuple[str | None, int, str | None, str | None]:
     offset_match = re.search(r"через\s+(\d+)\s*(?:мин|минут|минуты|минуту)?", normalized)
     offset_minutes = int(offset_match.group(1)) if offset_match else 0
 
+    time_match = re.search(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)", normalized)
+    requested_time = None
+    if time_match:
+        requested_time = dt_time(int(time_match.group(1)), int(time_match.group(2)))
+
     season = None
     if "лет" in normalized:
         season = "summer"
     elif "зим" in normalized:
         season = "winter"
-    return direction, offset_minutes, season, route
+    return direction, offset_minutes, season, route, requested_time
 
 
 def keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [["До Острошицкого", "До Востока"], ["Помощь"]],
+        [["До Острошицкого", "До Востока"], ["Выбрать время"], ["Помощь"]],
         resize_keyboard=True,
     )
+
+
+def time_keyboard() -> ReplyKeyboardMarkup:
+    buttons = []
+    for total_minutes in range(5 * 60, 23 * 60 + 1, 30):
+        hour, minute = divmod(total_minutes, 60)
+        buttons.append(f"{hour:02d}:{minute:02d}")
+    rows = [buttons[index:index + 4] for index in range(0, len(buttons), 4)]
+    rows.append(["Назад"])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Привет! Выбери направление — я покажу ближайшие 3 рейса №451 и №2198.\n\n"
         "Сезон №451 выбирается автоматически: апрель–октябрь — лето, ноябрь–март — зима.\n\n"
-        "Можно писать и текстом, например: «Через 15 минут буду на Востоке, когда до Острошицкого?».\n"
+        "Можно нажать «Выбрать время» и выбрать время с 05:00 до 23:00 с шагом 30 минут.\n"
+        "Также время можно написать текстом, например «18:00».\n"
         "Для ручного выбора сезона используй /summer, /winter или /auto.",
         reply_markup=keyboard(),
     )
@@ -94,7 +110,14 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not update.message or not update.message.text:
         return
     text = update.message.text
-    direction, offset_minutes, season, route = parse_query(text)
+    button_text = text.strip().lower()
+    if button_text == "выбрать время":
+        await update.message.reply_text("Выбери время с шагом 30 минут:", reply_markup=time_keyboard())
+        return
+    if button_text == "назад":
+        await update.message.reply_text("Главное меню.", reply_markup=keyboard())
+        return
+    direction, offset_minutes, season, route, requested_time = parse_query(text)
     if text.lower() in {"помощь", "/help"}:
         await help_command(update, context)
         return
@@ -102,16 +125,33 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         direction = "to_ostroshitsky"
     elif text.lower() == "до востока":
         direction = "to_vostok"
+    if direction is not None:
+        context.user_data["last_direction"] = direction
+    elif requested_time is not None:
+        direction = context.user_data.get("last_direction")
     if direction is None:
         await update.message.reply_text("Не понял направление. Напиши «до Востока» или «до Острошицкого».", reply_markup=keyboard())
         return
 
     season = season or context.user_data.get("season")
-    now = datetime.now(timezone()) + timedelta(minutes=offset_minutes)
+    now = datetime.now(timezone())
+    if requested_time is not None:
+        now = now.replace(
+            hour=requested_time.hour,
+            minute=requested_time.minute,
+            second=0,
+            microsecond=0,
+        )
+        if now < datetime.now(timezone()):
+            now += timedelta(days=1)
+    else:
+        now += timedelta(minutes=offset_minutes)
     items = next_departures(direction, now, limit=3, season_override=season, route_filter=route)
     answer = format_departures(items, direction, now)
     if offset_minutes:
         answer = f"Проверяю от времени через {offset_minutes} мин.\n\n" + answer
+    elif requested_time is not None:
+        answer = f"Проверяю от {requested_time:%H:%M}.\n\n" + answer
     if route is None:
         answer += "\n\nПримечание: в направлении учтены №451 и №2198."
     await update.message.reply_text(answer, reply_markup=keyboard())
