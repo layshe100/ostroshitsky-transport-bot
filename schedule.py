@@ -42,12 +42,27 @@ def season_for(day: date) -> str:
 
 
 def _day_group(day: date) -> str:
+    calendar = load_data().get("calendar", {})
+    if day.isoformat() in calendar.get("holidays", []):
+        return "weekend"
     return "weekend" if day.weekday() >= 5 else "weekday"
 
 
 def _parse_hhmm(value: str) -> time:
     hour, minute = map(int, value.split(":"))
-    return time(hour=hour, minute=minute)
+    return time(hour=hour % 24, minute=minute)
+
+
+def _minutes_from_hhmm(value: str) -> int:
+    hour, minute = map(int, value.split(":"))
+    return hour * 60 + minute
+
+
+def _departure_datetime(day: date, value: str, tz: ZoneInfo) -> datetime:
+    total_minutes = _minutes_from_hhmm(value)
+    departure_day = day + timedelta(days=total_minutes // (24 * 60))
+    departure_time = time(hour=(total_minutes // 60) % 24, minute=total_minutes % 60)
+    return datetime.combine(departure_day, departure_time, tzinfo=tz)
 
 
 def _times_for(route: dict[str, Any], day: date, season_override: str | None) -> list[str]:
@@ -70,7 +85,7 @@ def _times_for(route: dict[str, Any], day: date, season_override: str | None) ->
     for value, excluded_days in block.get("except", {}).items():
         if weekday in excluded_days:
             result.discard(value)
-    return sorted(result, key=lambda value: _parse_hhmm(value))
+    return sorted(result, key=_minutes_from_hhmm)
 
 
 def next_departures(
@@ -93,7 +108,7 @@ def next_departures(
         day = (start + timedelta(days=offset)).date()
         for route in routes:
             for value in _times_for(route, day, season_override):
-                departure = datetime.combine(day, _parse_hhmm(value), tzinfo=tz)
+                departure = _departure_datetime(day, value, tz)
                 if departure < start:
                     continue
                 wait = max(0, round((departure - start).total_seconds() / 60))
@@ -105,14 +120,46 @@ def next_departures(
 
 def format_departures(items: list[Departure], direction: str, requested_at: datetime) -> str:
     if direction == "to_ostroshitsky":
-        title = "Восток — Острошицкий городок"
+        title = "🚌 Восток → Острошицкий городок"
     else:
-        title = "Острошицкий городок — Восток"
+        title = "🚌 Острошицкий городок → Восток"
     if not items:
         return f"{title}\n\nНа ближайшие 7 дней рейсов в сохранённом расписании нет."
 
-    lines = [f"{title}", f"Отсчёт от {requested_at.strftime('%d.%m %H:%M')} (Минск)", ""]
-    for item in items:
-        day_label = "сегодня" if item.when.date() == requested_at.date() else item.when.strftime("%d.%m")
-        lines.append(f"{item.when:%H:%M} ({day_label}) — №{item.route} {item.kind}, ждать примерно {item.wait_minutes} мин.")
+    def wait_text(minutes: int) -> str:
+        if minutes == 0:
+            return "сейчас"
+        if minutes < 60:
+            word = "минута" if minutes == 1 else "минуты" if minutes % 10 in (2, 3, 4) and minutes % 100 not in (12, 13, 14) else "минут"
+            return f"{minutes} {word}"
+        hours, remainder = divmod(minutes, 60)
+        hour_word = "час" if hours == 1 else "часа" if hours % 10 in (2, 3, 4) and hours % 100 not in (12, 13, 14) else "часов"
+        if remainder == 0:
+            return f"{hours} {hour_word}"
+        minute_word = "минута" if remainder == 1 else "минуты" if remainder % 10 in (2, 3, 4) and remainder % 100 not in (12, 13, 14) else "минут"
+        return f"{hours} {hour_word} {remainder} {minute_word}"
+
+    data = load_data()
+    lines = [title, ""]
+    for index, item in enumerate(items):
+        if item.when.date() == requested_at.date():
+            day_suffix = ""
+        elif item.when.date() == (requested_at + timedelta(days=1)).date():
+            day_suffix = " (завтра)"
+        else:
+            day_suffix = f" ({item.when:%d.%m})"
+        marker = "🟢 " if index == 0 else ""
+        timing = f"отправление через {wait_text(item.wait_minutes)} по расписанию" if index == 0 else f"через {wait_text(item.wait_minutes)}"
+        lines.append(f"{marker}{item.when:%H:%M}{day_suffix} — {timing}")
+        lines.append(f"{item.kind.capitalize()} №{item.route}")
+        if index != len(items) - 1:
+            lines.append("")
+    lines.extend([
+        "",
+        "Время указано по расписанию.",
+        "Фактическое время прибытия может отличаться.",
+        "",
+        f"Расписание обновлено {data.get('updated_at', 'не указано')}.",
+        f"Источник: {data.get('source', 'фотографии расписания')}.",
+    ])
     return "\n".join(lines)
