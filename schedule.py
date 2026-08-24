@@ -120,9 +120,9 @@ def next_departures(
 
 def format_departures(items: list[Departure], direction: str, requested_at: datetime) -> str:
     if direction == "to_ostroshitsky":
-        title = "🚌 Восток → Острошицкий городок"
+        title = "🚌 Восток → Острошицкий городок-2"
     else:
-        title = "🚌 Острошицкий городок → Восток"
+        title = "🚌 Острошицкий городок-2 → Восток"
     if not items:
         return f"{title}\n\nНа ближайшие 7 дней рейсов в сохранённом расписании нет."
 

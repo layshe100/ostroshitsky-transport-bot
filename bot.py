@@ -17,8 +17,8 @@ logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loggin
 
 
 DIRECTION_LABELS = {
-    "to_ostroshitsky": "Восток → Острошицкий городок",
-    "to_vostok": "Острошицкий городок → Восток",
+    "to_ostroshitsky": "Восток → Острошицкий городок-2",
+    "to_vostok": "Острошицкий городок-2 → Восток",
 }
 
 TIME_PRESETS = {
@@ -40,7 +40,7 @@ def parse_query(
     normalized = text.lower().replace("ё", "е")
     direction = None
 
-    if re.search(r"\bдомой\b|\bдо\s+острош\w*|\bв\s+острош\w*|\bв\s+городок\b", normalized):
+    if re.search(r"\bдомой\b|\bдо\s+острош\w*|\bв\s+острош\w*|\bв\s+городок(?:-?\s*2)?\b", normalized):
         direction = "to_ostroshitsky"
     elif re.search(r"\b(?:до\s+(?:ст\.?\s*м\.?\s*)?восток|до\s+метро|на\s+восток|в\s+минск|в\s+город)\b", normalized):
         direction = "to_vostok"
@@ -64,10 +64,10 @@ def parse_query(
         direction = None
 
     route = None
-    if re.search(r"\b451\b", normalized):
-        route = "451"
-    elif re.search(r"\b2198\b", normalized):
-        route = "2198"
+    for route_number in ("451", "2198", "1464", "1554"):
+        if re.search(rf"\b{route_number}\b", normalized):
+            route = route_number
+            break
 
     offset_match = re.search(r"через\s+(\d+)\s*(?:мин|минут|минуты|минуту|час|часа|ч)?", normalized)
     offset_minutes = int(offset_match.group(1)) if offset_match else 0
@@ -92,7 +92,7 @@ def parse_query(
 def keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
-            ["До Острошицкого городка", "До ст. метро Восток"],
+            ["До Острошицкого городка-2", "До ст. метро Восток"],
             ["Выбрать время"],
             ["Помощь", "Сообщить об изменении"],
         ],
@@ -118,7 +118,7 @@ def time_input_keyboard() -> ReplyKeyboardMarkup:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Привет! Выбери направление и время — я покажу ближайшие 3 рейса №451 и №2198.",
+        "Привет! Выбери направление и время — я покажу ближайшие 3 рейса №451, №2198, №1464 и №1554.",
         reply_markup=keyboard(),
     )
 
@@ -126,8 +126,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Помощь\n\n"
-        "Бот показывает ближайшие 3 отправления автобуса №451 и маршрутки №2198 "
-        "между ст. метро Восток и Острошицким городком.\n\n"
+        "Бот показывает ближайшие 3 отправления автобуса №451 и маршруток №2198, №1464 и №1554 "
+        "между ст. метро Восток и Острошицким городком-2.\n\n"
         "Время берётся из расписания, транспорт в реальном времени бот не отслеживает.\n"
         "Фактическое время прибытия может отличаться.\n\n"
         "Расписание обновлено 20.08.2026.\n"
@@ -248,7 +248,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     elif button_text == "через 1 час":
         offset_minutes = 60
 
-    if button_text == "до острошицкого городка":
+    if button_text == "до острошицкого городка-2":
         direction = "to_ostroshitsky"
     elif button_text == "до ст. метро восток":
         direction = "to_vostok"
@@ -260,7 +260,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if direction is None:
         await update.message.reply_text(
             "Не понял направление. Выбери кнопку или напиши «домой», «в город», «на Восток», "
-            "«из Острошицкого» или «из Минска».",
+            "«из Острошицкого городка-2» или «из Минска».",
             reply_markup=keyboard(),
         )
         return

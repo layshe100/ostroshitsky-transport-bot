@@ -41,3 +41,19 @@ def test_451_from_ostroshitsky_to_minsk():
     start = datetime(2026, 8, 21, 18, 0, tzinfo=timezone())
     items = next_departures("to_vostok", start, limit=3, season_override="summer", route_filter="451")
     assert [item.when.strftime("%H:%M") for item in items] == ["18:41", "19:21", "20:16"]
+
+
+def test_1464_both_directions():
+    start = datetime(2026, 8, 24, 7, 0, tzinfo=timezone())
+    to_ostroshitsky = next_departures("to_ostroshitsky", start, limit=3, route_filter="1464")
+    to_vostok = next_departures("to_vostok", start, limit=3, route_filter="1464")
+    assert [item.when.strftime("%H:%M") for item in to_ostroshitsky] == ["07:25", "08:35", "09:20"]
+    assert [item.when.strftime("%H:%M") for item in to_vostok] == ["08:27", "09:27", "10:12"]
+
+
+def test_1554_both_directions():
+    start = datetime(2026, 8, 24, 6, 0, tzinfo=timezone())
+    to_ostroshitsky = next_departures("to_ostroshitsky", start, limit=4, route_filter="1554")
+    to_vostok = next_departures("to_vostok", start, limit=4, route_filter="1554")
+    assert [item.when.strftime("%H:%M") for item in to_ostroshitsky] == ["06:55", "18:10", "19:10", "20:40"]
+    assert [item.when.strftime("%H:%M") for item in to_vostok] == ["06:17", "06:47", "07:52", "18:57"]
