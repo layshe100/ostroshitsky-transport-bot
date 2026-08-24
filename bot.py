@@ -152,8 +152,6 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         answer = f"Проверяю от времени через {offset_minutes} мин.\n\n" + answer
     elif requested_time is not None:
         answer = f"Проверяю от {requested_time:%H:%M}.\n\n" + answer
-    if route is None:
-        answer += "\n\nПримечание: в направлении учтены №451 и №2198."
     await update.message.reply_text(answer, reply_markup=keyboard())
 
 

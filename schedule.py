@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone as dt_timezone
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -27,7 +27,12 @@ def load_data() -> dict[str, Any]:
 
 
 def timezone() -> ZoneInfo:
-    return ZoneInfo(load_data()["timezone"])
+    try:
+        return ZoneInfo(load_data()["timezone"])
+    except ZoneInfoNotFoundError:
+        # Minsk is UTC+3 year-round; this keeps local Windows checks working
+        # even when the system has no IANA tzdata package installed.
+        return dt_timezone(timedelta(hours=3), name="Europe/Minsk")
 
 
 def season_for(day: date) -> str:
@@ -100,9 +105,9 @@ def next_departures(
 
 def format_departures(items: list[Departure], direction: str, requested_at: datetime) -> str:
     if direction == "to_ostroshitsky":
-        title = "Восток → Острошицкий городок"
+        title = "Восток — Острошицкий городок"
     else:
-        title = "Острошицкий городок → Восток"
+        title = "Острошицкий городок — Восток"
     if not items:
         return f"{title}\n\nНа ближайшие 7 дней рейсов в сохранённом расписании нет."
 
@@ -110,7 +115,4 @@ def format_departures(items: list[Departure], direction: str, requested_at: date
     for item in items:
         day_label = "сегодня" if item.when.date() == requested_at.date() else item.when.strftime("%d.%m")
         lines.append(f"{item.when:%H:%M} ({day_label}) — №{item.route} {item.kind}, ждать примерно {item.wait_minutes} мин.")
-    sources = sorted({item.source for item in items})
-    lines.append("")
-    lines.append("Источник: " + "; ".join(sources))
     return "\n".join(lines)
