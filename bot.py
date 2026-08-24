@@ -62,7 +62,7 @@ def parse_query(text: str) -> tuple[str | None, int, str | None, str | None, dt_
 
 def keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [["До Острошицкого", "До Востока"], ["Выбрать время"], ["Помощь"]],
+        [["До Острошицкого городка", "До ст. метро Восток"], ["Выбрать время"], ["Помощь"]],
         resize_keyboard=True,
     )
 
@@ -121,16 +121,16 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if text.lower() in {"помощь", "/help"}:
         await help_command(update, context)
         return
-    if text.lower() == "до острошицкого":
+    if text.lower() == "до острошицкого городка":
         direction = "to_ostroshitsky"
-    elif text.lower() == "до востока":
+    elif text.lower() == "до ст. метро восток":
         direction = "to_vostok"
     if direction is not None:
         context.user_data["last_direction"] = direction
     elif requested_time is not None:
         direction = context.user_data.get("last_direction")
     if direction is None:
-        await update.message.reply_text("Не понял направление. Напиши «до Востока» или «до Острошицкого».", reply_markup=keyboard())
+        await update.message.reply_text("Не понял направление. Напиши «до ст. метро Восток» или «до Острошицкого городка».", reply_markup=keyboard())
         return
 
     season = season or context.user_data.get("season")
