@@ -160,6 +160,5 @@ def format_departures(items: list[Departure], direction: str, requested_at: date
         "Фактическое время прибытия может отличаться.",
         "",
         f"Расписание обновлено {data.get('updated_at', 'не указано')}.",
-        f"Источник: {data.get('source', 'фотографии расписания')}.",
     ])
     return "\n".join(lines)
